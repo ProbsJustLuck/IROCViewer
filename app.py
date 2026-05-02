@@ -83,6 +83,12 @@ def market_rangebreaks(interval: str, hide_market_gaps: bool) -> list[dict[str, 
     return breaks
 
 
+def chart_x_values(index: pd.Index, compress_x_axis: bool) -> pd.Index | list[str]:
+    if not compress_x_axis:
+        return index
+    return pd.to_datetime(index).strftime("%b %d, %Y %H:%M").tolist()
+
+
 @st.cache_data(ttl=60 * 30, show_spinner=False)
 def download_history(ticker: str, period: str, interval: str) -> pd.DataFrame:
     data = yf.download(
@@ -111,13 +117,15 @@ def make_price_chart(
     show_extrema: bool,
     curve_shape: str,
     rangebreaks: list[dict[str, object]],
+    compress_x_axis: bool,
 ) -> go.Figure:
     fig = go.Figure()
+    x_values = chart_x_values(data.index, compress_x_axis)
 
     if show_candles and {"Open", "High", "Low", "Close"}.issubset(data.columns):
         fig.add_trace(
             go.Candlestick(
-                x=data.index,
+                x=x_values,
                 open=data["Open"],
                 high=data["High"],
                 low=data["Low"],
@@ -128,7 +136,7 @@ def make_price_chart(
     else:
         fig.add_trace(
             go.Scatter(
-                x=data.index,
+                x=x_values,
                 y=data["Price"],
                 mode="lines",
                 name="Price",
@@ -140,7 +148,7 @@ def make_price_chart(
     if smoothing_enabled:
         fig.add_trace(
             go.Scatter(
-                x=data.index,
+                x=x_values,
                 y=data["Analyzed Price"],
                 mode="lines",
                 name=f"{smoothing_window}-bar analyzed price",
@@ -153,7 +161,7 @@ def make_price_chart(
         peaks, troughs = local_extrema(data["Analyzed Price"])
         fig.add_trace(
             go.Scatter(
-                x=peaks.index,
+                x=chart_x_values(peaks.index, compress_x_axis),
                 y=peaks,
                 mode="markers",
                 name="Local peaks",
@@ -162,7 +170,7 @@ def make_price_chart(
         )
         fig.add_trace(
             go.Scatter(
-                x=troughs.index,
+                x=chart_x_values(troughs.index, compress_x_axis),
                 y=troughs,
                 mode="markers",
                 name="Local troughs",
@@ -171,15 +179,15 @@ def make_price_chart(
         )
 
     fig.update_layout(
-        title=f"{ticker} price a(t)",
-        xaxis_title="Date/time",
+        title=f"{ticker} price - f(x)",
+        xaxis_title="Trading bars" if compress_x_axis else "Date/time",
         yaxis_title="Price",
         hovermode="x unified",
         template="plotly_white",
         legend={"orientation": "h", "y": 1.08},
         margin={"l": 8, "r": 8, "t": 64, "b": 8},
     )
-    fig.update_xaxes(rangebreaks=rangebreaks)
+    fig.update_xaxes(rangebreaks=rangebreaks, type="category" if compress_x_axis else None)
     return fig
 
 
@@ -193,15 +201,17 @@ def make_derivative_chart(
     rangebreaks: list[dict[str, object]],
     scale_factor: float,
     scale_label: str,
+    compress_x_axis: bool,
 ) -> go.Figure:
     colors = ["#7c3aed", "#0891b2", "#ea580c"]
     fig = go.Figure()
+    x_values = chart_x_values(data.index, compress_x_axis)
     for index, column in enumerate(columns):
         if column not in data.columns:
             continue
         fig.add_trace(
             go.Scatter(
-                x=data.index,
+                x=x_values,
                 y=data[column] * scale_factor,
                 mode="lines",
                 name=column,
@@ -215,7 +225,7 @@ def make_derivative_chart(
             crossings = zero_crossings(data[column]) * scale_factor
             fig.add_trace(
                 go.Scatter(
-                    x=crossings.index,
+                    x=chart_x_values(crossings.index, compress_x_axis),
                     y=crossings,
                     mode="markers",
                     name=f"{column} zero crossings",
@@ -228,14 +238,14 @@ def make_derivative_chart(
     fig.add_hline(y=0, line_width=1, line_dash="dash", line_color="#6b7280")
     fig.update_layout(
         title=title,
-        xaxis_title="Date/time",
+        xaxis_title="Trading bars" if compress_x_axis else "Date/time",
         yaxis_title=y_title if scale_factor == 1 else f"{y_title} ({scale_label})",
         hovermode="x unified",
         template="plotly_white",
         legend={"orientation": "h", "y": 1.08},
         margin={"l": 8, "r": 8, "t": 64, "b": 8},
     )
-    fig.update_xaxes(rangebreaks=rangebreaks)
+    fig.update_xaxes(rangebreaks=rangebreaks, type="category" if compress_x_axis else None)
     fig.update_yaxes(tickformat=".6f")
     return fig
 
@@ -243,13 +253,15 @@ def make_derivative_chart(
 def make_comparison_chart(
     normalized: pd.DataFrame,
     rangebreaks: list[dict[str, object]],
+    compress_x_axis: bool,
 ) -> go.Figure:
     fig = go.Figure()
+    x_values = chart_x_values(normalized.index, compress_x_axis)
     palette = ["#2563eb", "#dc2626", "#16a34a", "#7c3aed", "#ea580c", "#0891b2"]
     for index, column in enumerate(normalized.columns):
         fig.add_trace(
             go.Scatter(
-                x=normalized.index,
+                x=x_values,
                 y=normalized[column],
                 mode="lines",
                 name=column,
@@ -260,14 +272,14 @@ def make_comparison_chart(
     fig.add_hline(y=0, line_width=1, line_dash="dash", line_color="#6b7280")
     fig.update_layout(
         title="Normalized comparison",
-        xaxis_title="Date/time",
+        xaxis_title="Trading bars" if compress_x_axis else "Date/time",
         yaxis_title="Performance since start (%)",
         hovermode="x unified",
         template="plotly_white",
         legend={"orientation": "h", "y": 1.08},
         margin={"l": 8, "r": 8, "t": 64, "b": 8},
     )
-    fig.update_xaxes(rangebreaks=rangebreaks)
+    fig.update_xaxes(rangebreaks=rangebreaks, type="category" if compress_x_axis else None)
     return fig
 
 
@@ -385,8 +397,9 @@ def main() -> None:
         )
         continuous_display = st.toggle("Smooth visual curve", value=False)
         curve_shape = "spline" if continuous_display else "linear"
-        hide_market_gaps = st.toggle("Hide non-trading gaps", value=interval != "1d")
-        rangebreaks = market_rangebreaks(interval, hide_market_gaps)
+        hide_market_gaps = st.toggle("Compress non-trading gaps", value=interval != "1d")
+        compress_x_axis = hide_market_gaps and interval != "1d"
+        rangebreaks = [] if compress_x_axis else market_rangebreaks(interval, hide_market_gaps)
 
         st.divider()
         show_candles = st.toggle("Candlestick price chart", value=False)
@@ -445,6 +458,7 @@ def main() -> None:
         show_extrema=show_extrema,
         curve_shape=curve_shape,
         rangebreaks=rangebreaks,
+        compress_x_axis=compress_x_axis,
     )
     st.plotly_chart(price_fig, use_container_width=True)
 
@@ -453,7 +467,7 @@ def main() -> None:
 
     roc_fig = make_derivative_chart(
         derivative_data.display,
-        title="ROC / slope (f'(x))",
+        title="ROC / slope - f'(x)",
         columns=[derivative_data.roc_dollars_column, derivative_data.roc_percent_column],
         y_title="ROC",
         show_zero_crossings=show_zero_markers,
@@ -461,6 +475,7 @@ def main() -> None:
         rangebreaks=rangebreaks,
         scale_factor=axis_scale_factor,
         scale_label=axis_scale_label,
+        compress_x_axis=compress_x_axis,
     )
     st.plotly_chart(roc_fig, use_container_width=True)
 
@@ -471,7 +486,7 @@ def main() -> None:
     }[iroc_mode]
     iroc_fig = make_derivative_chart(
         derivative_data.display,
-        title="IROC (f''(x))",
+        title="IROC - f''(x)",
         columns=iroc_columns,
         y_title="IROC",
         show_zero_crossings=show_zero_markers,
@@ -479,6 +494,7 @@ def main() -> None:
         rangebreaks=rangebreaks,
         scale_factor=axis_scale_factor,
         scale_label=axis_scale_label,
+        compress_x_axis=compress_x_axis,
     )
     st.plotly_chart(iroc_fig, use_container_width=True)
 
@@ -505,7 +521,7 @@ def main() -> None:
         if normalized.empty or normalized.shape[1] < 2:
             st.info("Comparison tickers did not return enough data to draw a comparison chart.")
         else:
-            comparison_fig = make_comparison_chart(normalized, rangebreaks)
+            comparison_fig = make_comparison_chart(normalized, rangebreaks, compress_x_axis)
             st.plotly_chart(comparison_fig, use_container_width=True)
             with st.expander("Export comparison chart"):
                 figure_downloads(comparison_fig, f"{ticker.lower()}_comparison")

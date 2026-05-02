@@ -51,6 +51,7 @@ Canadian tickers generally need the `.TO` suffix for Yahoo Finance.
 - Optional derivative axis scaler, such as `x1,000`, for easier reading of very small ROC/IROC values.
 - Moving-average smoothing before derivatives.
 - Optional smooth visual curve interpolation.
+- Optional compressed intraday x-axis that removes non-trading gaps.
 - Optional zero-crossing markers.
 - Optional local peak/trough markers.
 - Normalized comparison chart for other tickers.
