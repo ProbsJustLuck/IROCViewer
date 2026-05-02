@@ -4,11 +4,11 @@ A local Streamlit app for graphing a stock price curve, its ROC / slope, and IRO
 
 In this project:
 
-- `a(t)` is the adjusted close stock price.
+- `f(x)` is the stock price graph.
 - `ROC / slope` is the first numerical derivative.
 - `IROC` is the second numerical derivative.
 
-The app uses Yahoo Finance data through `yfinance`. Calculations are educational and should not be treated as financial advice.
+The app uses Yahoo Finance data through `yfinance`.
 
 ## Setup
 
